@@ -16,21 +16,27 @@ public class JpaMain {
     tx.begin();
     try {
       // # 기본 문법과 쿼리 API
-      Team team = new Team();
-      team.setName("teamA");
-      em.persist(team);
-//      for(int i=0;i<100;i++) {
-
-      Member member = new Member();
-      member.setUsername("관리자");
-      member.setAge(10);
-      member.setTeam(team);
-      member.setMemberType(MemberType.ADMIN);
-
-      em.persist(member);
-//      }
-      em.flush();
-      em.clear();
+//      Team team = new Team();
+//      team.setName("teamA");
+//      em.persist(team);
+////      for(int i=0;i<100;i++) {
+//
+//      Member member1 = new Member();
+//      member1.setUsername("관리자");
+//      member1.setAge(10);
+//      member1.setTeam(team);
+//      member1.setMemberType(MemberType.ADMIN);
+//
+//      Member member2 = new Member();
+//      member2.setUsername("관리자");
+//      member2.setAge(10);
+//      member2.setTeam(team);
+//      member2.setMemberType(MemberType.ADMIN);
+//
+//      em.persist(member2);
+////      }
+//      em.flush();
+//      em.clear();
 
       //반환타입이 명확 멤버이거나 문자열이거나
 //      TypedQuery<Member> query1 = em.createQuery("select m from Member m",Member.class);
@@ -175,13 +181,70 @@ public class JpaMain {
 
       //사용자 정의 함수 호출
 //      String query = "select function('group_concat',m.username) From Member m";
-      String query = "select group_concat(m.username) From Member m";
-      em.createQuery(query);
-      List<String> resultList = em.createQuery(query, String.class)
-          .getResultList();
-      for (String s : resultList) {
-        System.out.println("s = " + s);
-      }
+//      String query = "select group_concat(m.username) From Member m";
+//      em.createQuery(query);
+//      List<String> resultList = em.createQuery(query, String.class)
+//          .getResultList();
+//      for (String s : resultList) {
+//        System.out.println("s = " + s);
+//      }
+
+      //# 경로 표현식
+      //상태 필드, 단일 값 연관 경로, 컬렉션 값 연관 경로 -> 묵시적 내부 조인이 발생하기 때문에 명시적 조인을 사용해야함.
+
+      //# ★페치 조인★
+      //대부분의 N+1 문제를 해결할 수 있음
+      //한방 쿼리
+      Team teamA = new Team();
+      teamA.setName("teamA");
+      em.persist(teamA);
+
+      Team teamB = new Team();
+      teamB.setName("teamB");
+      em.persist(teamB);
+
+      Member member1 = new Member();
+      member1.setUsername("회원A");
+      member1.setTeam(teamA);
+      em.persist(member1);
+      Member member2 = new Member();
+      member2.setUsername("회원B");
+      member2.setTeam(teamA);
+      em.persist(member2);
+      Member member3 = new Member();
+      member3.setUsername("회원C");
+      member3.setTeam(teamB);
+      em.persist(member3);
+
+      em.flush();
+      em.clear();
+
+//      String query = "select m from Member m";(1)
+//      String query = "select m from Member m join fetch m.team";
+//      List<Member> resultList = em.createQuery(query).getResultList();
+//      
+//      for (Member member : resultList) {
+//        System.out.println("member.getUsername() = " + member.getUsername() + "," + member.getTeam().getName());
+        //회원1, 팀A(SQL) (1)
+        //회원2, 팀A(1차캐시) (1)
+        //회원3, 팀B(SQL) (1)
+
+        //회원 100명을 조회해서 모든 회원이 다 서로다른 팀이라면 -> 100 + 1 즉, N+1 문제임. (1)
+
+        //LAZY 로딩으로 세팅하더라도, fetch join이 우선순위가 높음.
+        
+        //일대다관계, 컬렉션 페치 조인
+//      }
+
+      //SQL결과는 3개지만 애플리케이션 레벨에서 중복제거를 추가 수행함.
+//      String query = "select distinct t From Team t join fetch t.members";
+//      List<Team> resultList = em.createQuery(query).getResultList();
+//      for (Team team : resultList) {
+//        System.out.println("team.getName() = " + team.getName() + "| members = " + team.getMembers().size());
+        //일대다 조인은 데이터가 뻥튀기 될 수 있음
+
+//      }
+
 
 
       tx.commit();
