@@ -225,15 +225,16 @@ public class JpaMain {
 //      
 //      for (Member member : resultList) {
 //        System.out.println("member.getUsername() = " + member.getUsername() + "," + member.getTeam().getName());
-        //회원1, 팀A(SQL) (1)
-        //회원2, 팀A(1차캐시) (1)
-        //회원3, 팀B(SQL) (1)
+      //회원1, 팀A(SQL) (1)
+      //회원2, 팀A(1차캐시) (1)
+      //회원3, 팀B(SQL) (1)
 
-        //회원 100명을 조회해서 모든 회원이 다 서로다른 팀이라면 -> 100 + 1 즉, N+1 문제임. (1)
+      //회원 100명을 조회해서 모든 회원이 다 서로다른 팀이라면 -> 100 + 1 즉, N+1 문제임. (1)
+      // -> Fetch join || Batch Size
 
-        //LAZY 로딩으로 세팅하더라도, fetch join이 우선순위가 높음.
-        
-        //일대다관계, 컬렉션 페치 조인
+      //LAZY 로딩으로 세팅하더라도, fetch join이 우선순위가 높음.
+
+      //일대다관계, 컬렉션 페치 조인
 //      }
 
       //SQL결과는 3개지만 애플리케이션 레벨에서 중복제거를 추가 수행함.
@@ -241,11 +242,83 @@ public class JpaMain {
 //      List<Team> resultList = em.createQuery(query).getResultList();
 //      for (Team team : resultList) {
 //        System.out.println("team.getName() = " + team.getName() + "| members = " + team.getMembers().size());
-        //일대다 조인은 데이터가 뻥튀기 될 수 있음
+      //일대다 조인은 데이터가 뻥튀기 될 수 있음
 
 //      }
 
+      String query = "select t from Team t";
+      List<Team> resultList = em.createQuery(query, Team.class).getResultList();
 
+      System.out.println("resultList.size() = " + resultList.size());
+
+      //이같은 경우 멤버를 조회할때 새로운 멤버에 대해 조회가 추가적으로 발생하는데,
+      //persistence.xml에 batch fetch size를 작성하여, 한번에 필요한 대상을 조회할 수 있음.
+      for (Team team : resultList) {
+        System.out.println("team = " + team + " | members = " + team.getMembers().size());
+        for (Member member : team.getMembers()) {
+          System.out.println("-> member = " + member);
+        }
+      }
+
+      // 실무에서 발생하는 최적화 이슈는 대부분 N+1 문제이고 fetch join으로 대부분 해결한다고 함.
+
+      //# 엔티티 직접 사용
+
+      //아래의 두 쿼리는 동일하다. 엔티티를 쿼리상 작성하게 되면 엔티의 기본키 값이 넘어간다.
+      String sql1 = "select count(m.id) from Member m";
+      String sql2 = "select count(m) from Member m";
+
+//      String query2 = "select m from Member m where m = :member";
+      String query3 = "select m from Member m where m.id = :memberId";
+
+      Member member = em.createQuery(query3, Member.class)
+//          .setParameter("member", member1)
+          .setParameter("memberId", member1.getId())
+          .getSingleResult();
+
+      //외래키도 마찬가지.
+      String query4 = "select m from Member m where m.team = :team";
+      List<Member> members = em.createQuery(query4, Member.class)
+//          .setParameter("member", member1)
+          .setParameter("team", teamA)
+          .getResultList();
+
+      for (Member member4 : members) {
+        System.out.println("member4 = " + member4);
+      }
+
+
+      //#Named 쿼리
+      //애플리케이션 로딩시점에 쿼리의 문법 오류를 잡아줄 수 있음
+
+      List<Member> resultList1 = em.createNamedQuery("Member.findByUsername", Member.class)
+          .setParameter("username", "회원A").getResultList();
+
+      for (Member member4 : resultList1) {
+        System.out.println("member4 = " + member4);
+      }
+
+      //#벌크 연산
+      //update나 delete연산을 여러번수행해야할 때.
+      //하이버네이트 사용시 insert도 사용 가능.
+      // 영속성 컨텍스트를 무시하고 수행함
+      //  - 벌크 연산을 먼저 수행
+      // or
+      //  - 벌크 연산 수행 후 영속성 컨텍스트 초기화
+      int resultCount = em.createQuery("update Member m set m.age=20").executeUpdate();
+
+      System.out.println("resultCount = " + resultCount);
+
+      //영속성 컨텍스트에 반영이 되지 않아서 값이 0으로 출력됨(데이터 정합성이 깨짐.)
+      System.out.println("member1 = " + member1.getAge());
+      System.out.println("member2 = " + member2.getAge());
+      System.out.println("member3 = " + member3.getAge());
+
+      //영속성 컨텍스트 초기화
+      em.clear();
+
+      Member member4 = em.find(Member.class, member1.getId());
+      System.out.println("member4 = " + member4);
 
       tx.commit();
     } catch (Exception e) {
